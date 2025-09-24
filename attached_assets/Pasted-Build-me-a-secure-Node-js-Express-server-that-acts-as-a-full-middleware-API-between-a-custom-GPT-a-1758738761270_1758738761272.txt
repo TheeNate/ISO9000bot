@@ -1,0 +1,54 @@
+Build me a secure Node.js + Express server that acts as a full middleware API between a custom GPT and my Airtable base (LeNDT QMS, ISO 9001).
+
+Requirements:
+
+1. Environment variables:
+   - AIRTABLE_TOKEN = Airtable Personal Access Token (with read/write access to my base)
+   - AIRTABLE_BASE_ID = ID of my Airtable base
+   - PORT = server port
+
+2. Endpoints (generic, covers ALL tables in the base):
+   - GET /:table
+     → Returns all records from the specified table (paginated, use Airtable’s pagination).
+   - GET /:table/:id
+     → Returns a single record by Airtable record ID.
+   - POST /:table
+     → Creates a new record in the specified table.
+     → Accepts JSON body with { "fields": { ... } } matching Airtable field names.
+   - PATCH /:table/:id
+     → Updates fields for the specified record.
+   - DELETE /:table/:id
+     → Deletes a record by ID.
+
+3. Implementation details:
+   - Use the `airtable` npm package OR axios/fetch with the Airtable REST API.
+   - Normalize responses to only return clean JSON:
+       {
+         "id": "recXXXX",
+         "fields": { ... },
+         "createdTime": "2025-09-23T12:00:00.000Z"
+       }
+     (strip out Airtable metadata like "offset").
+   - Handle pagination (loop until all records are fetched).
+   - Validate that the requested table name is valid for this base (fetch table list once at startup via Metadata API).
+   - Gracefully handle errors (400 for bad requests, 404 if record not found, 500 for Airtable errors).
+
+4. Security:
+   - Do NOT expose AIRTABLE_TOKEN in responses or logs.
+   - Only allow table names that exist in this base (no arbitrary string injection).
+   - Add simple API key auth for requests to this middleware:
+     - ENV var: MIDDLEWARE_KEY
+     - Require header: Authorization: Bearer <MIDDLEWARE_KEY>
+
+5. Output:
+   - Full `index.js` (Express server).
+   - package.json with dependencies.
+   - .env.example file.
+   - Example curl requests for each endpoint:
+     - List all Jobs
+     - Create a new Report
+     - Update a Person’s phone number
+     - Delete a Certificate
+
+Goal:
+A generic REST API wrapper that lets a GPT (or any client) interact with *any table* in my Airtable base, while keeping my Airtable PAT safe in environment variables.
