@@ -94,7 +94,7 @@ export default function ApiExplorer() {
   return (
     <div className="bg-card border border-border rounded-lg p-6">
       <div className="mb-6">
-        <h3 className="text-lg font-semibold mb-4" data-testid="text-explorer-title">Test API Endpoints</h3>
+        <h3 className="text-lg font-semibold mb-4" data-testid="text-api-explorer-title">Test API Endpoints</h3>
         <p className="text-muted-foreground">Try out the API endpoints with your authentication token.</p>
       </div>
       

@@ -4,6 +4,7 @@ import type { AirtableRecord, Table } from '@shared/schema';
 export class AirtableService {
   private base: Airtable.Base;
   private validTables: Set<string> = new Set();
+  private initialized: boolean = false;
 
   constructor() {
     const token = process.env.AIRTABLE_TOKEN || process.env.AIRTABLE_PAT || process.env.AIRTABLE_API_KEY;
@@ -23,7 +24,13 @@ export class AirtableService {
     });
 
     this.base = Airtable.base(baseId);
-    this.initializeValidTables();
+  }
+
+  async initialize(): Promise<void> {
+    if (!this.initialized) {
+      await this.initializeValidTables();
+      this.initialized = true;
+    }
   }
 
   private async initializeValidTables() {
@@ -51,6 +58,8 @@ export class AirtableService {
   }
 
   isValidTable(tableName: string): boolean {
+    // If we haven't initialized tables yet or initialization failed, allow all tables
+    // The actual validation will happen when the Airtable API is called
     return this.validTables.size === 0 || this.validTables.has(tableName);
   }
 

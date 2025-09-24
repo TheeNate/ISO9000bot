@@ -18,6 +18,9 @@ function createErrorResponse(code: string, message: string, details?: string, re
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize AirtableService before registering routes
+  await airtableService.initialize();
+
   // Apply authentication middleware to all API routes
   app.use("/api", authenticateApiKey);
 
