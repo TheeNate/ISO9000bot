@@ -2,7 +2,9 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { authenticateApiKey, type AuthenticatedRequest } from "./middleware/auth";
 import { createRateLimiter, createSpeedLimiter, createAuthRateLimiter, createBulkOperationLimiter } from "./middleware/rateLimiting";
+import { auditLoggingSetup, auditLoggingComplete } from "./middleware/auditLogging";
 import { airtableService } from "./services/airtable";
+import { storage } from "./storage";
 import { createRecordSchema, updateRecordSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -28,12 +30,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const authRateLimiter = createAuthRateLimiter();
   const bulkOperationLimiter = createBulkOperationLimiter();
 
+  // Apply audit logging setup to all routes (must be first to capture all requests)
+  app.use(auditLoggingSetup);
+  app.use(auditLoggingComplete);
+
   // Apply rate limiting and throttling to all API routes
   app.use("/api", rateLimiter);
   app.use("/api", speedLimiter);
   
   // Apply authentication middleware to all API routes
   app.use("/api", authenticateApiKey);
+
+  // Admin audit log API endpoints - must be BEFORE general table routes
+  app.get("/api/admin/audit-logs", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const offset = parseInt(req.query.offset as string) || 0;
+      
+      const logs = await storage.getAuditLogs(limit, offset);
+      
+      res.json({
+        logs,
+        count: logs.length,
+        limit,
+        offset
+      });
+    } catch (error: any) {
+      console.error('Error fetching audit logs:', error);
+      res.status(500).json(
+        createErrorResponse(
+          'AUDIT_LOG_ERROR',
+          'Failed to fetch audit logs',
+          error.message,
+          req.headers['x-request-id'] as string
+        )
+      );
+    }
+  });
+
+  app.get("/api/admin/audit-logs/table/:tableName", async (req: Request, res: Response) => {
+    try {
+      const { tableName } = req.params;
+      const limit = parseInt(req.query.limit as string) || 100;
+      
+      const logs = await storage.getAuditLogsByTable(tableName, limit);
+      
+      res.json({
+        logs,
+        count: logs.length,
+        tableName,
+        limit
+      });
+    } catch (error: any) {
+      console.error('Error fetching audit logs by table:', error);
+      res.status(500).json(
+        createErrorResponse(
+          'AUDIT_LOG_ERROR',
+          'Failed to fetch audit logs by table',
+          error.message,
+          req.headers['x-request-id'] as string
+        )
+      );
+    }
+  });
+
+  app.get("/api/admin/audit-logs/operation/:operationType", async (req: Request, res: Response) => {
+    try {
+      const { operationType } = req.params;
+      const limit = parseInt(req.query.limit as string) || 100;
+      
+      const logs = await storage.getAuditLogsByOperation(operationType, limit);
+      
+      res.json({
+        logs,
+        count: logs.length,
+        operationType,
+        limit
+      });
+    } catch (error: any) {
+      console.error('Error fetching audit logs by operation:', error);
+      res.status(500).json(
+        createErrorResponse(
+          'AUDIT_LOG_ERROR',
+          'Failed to fetch audit logs by operation',
+          error.message,
+          req.headers['x-request-id'] as string
+        )
+      );
+    }
+  });
+
+  app.get("/api/admin/audit-logs/failed", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      
+      const logs = await storage.getFailedAuditLogs(limit);
+      
+      res.json({
+        logs,
+        count: logs.length,
+        limit
+      });
+    } catch (error: any) {
+      console.error('Error fetching failed audit logs:', error);
+      res.status(500).json(
+        createErrorResponse(
+          'AUDIT_LOG_ERROR',
+          'Failed to fetch failed audit logs',
+          error.message,
+          req.headers['x-request-id'] as string
+        )
+      );
+    }
+  });
 
   // GET /:table - Get all records from table
   app.get("/api/:table", async (req: Request, res: Response) => {
