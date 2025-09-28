@@ -267,6 +267,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  function mapToAirtableFieldType(inputType: string): string {
+    const mapping: Record<string, string> = {
+      'singleLineText': 'text',
+      'multilineText': 'longText', 
+      'singleSelect': 'singleSelect',
+      'multipleSelect': 'multipleSelect',
+      'date': 'date',
+      'number': 'number'
+    };
+    return mapping[inputType] || inputType;
+  }
+
       
 
        // Schema modification endpoints - Add/update table fields
@@ -339,7 +351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                },
                body: JSON.stringify({
                  name,
-                 type,
+                 type: mapToAirtableFieldType(type),  // ← Only this line, remove the duplicate
                  options: options || {}
                })
              }
