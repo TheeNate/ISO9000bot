@@ -447,9 +447,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
          }
        });
 
-       // GET /:table - Get all records from table
-       app.get("/api/:table", async (req: Request, res: Response) => {
-
   // GET /:table - Get all records from table
   app.get("/api/:table", async (req: Request, res: Response) => {
     try {
@@ -928,7 +925,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ),
           );
       }
-    }
+    },
   );
 
   const httpServer = createServer(app);
