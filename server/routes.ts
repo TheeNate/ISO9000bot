@@ -26,6 +26,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Apply authentication middleware to all API routes
   app.use("/api", authenticateApiKey);
 
+  // Get database schema endpoint
+  app.get("/api/schema", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const token = process.env.AIRTABLE_TOKEN;
+      const baseId = process.env.AIRTABLE_BASE_ID;
+
+      if (!token || !baseId) {
+        return res
+          .status(500)
+          .json(
+            createErrorResponse(
+              "CONFIG_ERROR",
+              "Airtable configuration missing",
+              "AIRTABLE_TOKEN or AIRTABLE_BASE_ID not configured",
+              req.requestId,
+            ),
+          );
+      }
+
+      // Get complete schema from Airtable Metadata API
+      const response = await fetch(
+        `https://api.airtable.com/v0/meta/bases/${baseId}/tables`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch schema: ${response.statusText}`);
+      }
+
+      const schemaData = await response.json();
+      res.json(schemaData);
+    } catch (error: any) {
+      console.error("Schema fetch error:", error);
+      res
+        .status(500)
+        .json(
+          createErrorResponse(
+            "SCHEMA_FETCH_ERROR",
+            "Failed to fetch database schema",
+            error.message,
+            req.requestId,
+          ),
+        );
+    }
+  });
+
   // Create field in existing table endpoint
   app.post(
     "/api/meta/:table/fields",
