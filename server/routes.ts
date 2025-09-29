@@ -26,6 +26,117 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Apply authentication middleware to all API routes
   app.use("/api", authenticateApiKey);
 
+  // Create field in existing table endpoint
+  app.post(
+    "/api/meta/:table/fields",
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const { table } = req.params;
+        const { name, type, options } = req.body;
+
+        if (!name || !type) {
+          return res
+            .status(400)
+            .json(
+              createErrorResponse(
+                "INVALID_REQUEST_BODY",
+                "Field name and type are required",
+                'Expected: {"name": "Field Name", "type": "text", "options": {...}}',
+                req.requestId,
+              ),
+            );
+        }
+
+        const token = process.env.AIRTABLE_TOKEN;
+        const baseId = process.env.AIRTABLE_BASE_ID;
+
+        if (!token || !baseId) {
+          return res
+            .status(500)
+            .json(
+              createErrorResponse(
+                "CONFIG_ERROR",
+                "Airtable configuration missing",
+                "AIRTABLE_TOKEN or AIRTABLE_BASE_ID not configured",
+                req.requestId,
+              ),
+            );
+        }
+
+        // Get table metadata to find table ID
+        const schemaResponse = await fetch(
+          `https://api.airtable.com/v0/meta/bases/${baseId}/tables`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+
+        if (!schemaResponse.ok) {
+          throw new Error(
+            `Failed to fetch schema: ${schemaResponse.statusText}`,
+          );
+        }
+
+        const schemaData = await schemaResponse.json();
+        const tableData = schemaData.tables.find((t: any) => t.name === table);
+
+        if (!tableData) {
+          return res
+            .status(404)
+            .json(
+              createErrorResponse(
+                "TABLE_NOT_FOUND",
+                `Table '${table}' not found`,
+                `Available tables: ${schemaData.tables.map((t: any) => t.name).join(", ")}`,
+                req.requestId,
+              ),
+            );
+        }
+
+        // Create the new field
+        const fieldResponse = await fetch(
+          `https://api.airtable.com/v0/meta/bases/${baseId}/tables/${tableData.id}/fields`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              name,
+              type,
+              options: options || {},
+            }),
+          },
+        );
+
+        if (!fieldResponse.ok) {
+          const errorData = await fieldResponse.json();
+          throw new Error(
+            `Failed to create field: ${errorData.error?.message || fieldResponse.statusText}`,
+          );
+        }
+
+        const result = await fieldResponse.json();
+        res.status(201).json(result);
+      } catch (error: any) {
+        console.error(`Error creating field in ${req.params.table}:`, error);
+        res
+          .status(500)
+          .json(
+            createErrorResponse(
+              "FIELD_CREATE_ERROR",
+              "Failed to create field",
+              error.message,
+              req.requestId,
+            ),
+          );
+      }
+    },
+  );
+
   // Create new table endpoint
   app.post(
     "/api/meta/tables",
