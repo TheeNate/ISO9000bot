@@ -270,6 +270,209 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   );
 
+  // Record operations - Create, Read, Update (no Delete per audit requirements)
+
+  // GET /api/:table - Read all records from table
+  app.get("/api/:table", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { table } = req.params;
+      const token = process.env.AIRTABLE_TOKEN;
+      const baseId = process.env.AIRTABLE_BASE_ID;
+
+      if (!token || !baseId) {
+        return res
+          .status(500)
+          .json(
+            createErrorResponse(
+              "CONFIG_ERROR",
+              "Airtable configuration missing",
+              "AIRTABLE_TOKEN or AIRTABLE_BASE_ID not configured",
+              req.requestId,
+            ),
+          );
+      }
+
+      // Get records from Airtable
+      const response = await fetch(
+        `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch records: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      res.json({ records: data.records });
+    } catch (error: any) {
+      console.error(`Error fetching records from ${req.params.table}:`, error);
+      res
+        .status(500)
+        .json(
+          createErrorResponse(
+            "RECORD_READ_ERROR",
+            "Failed to read records",
+            error.message,
+            req.requestId,
+          ),
+        );
+    }
+  });
+
+  // POST /api/:table - Create new record
+  app.post("/api/:table", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { table } = req.params;
+      const { fields } = req.body;
+
+      if (!fields) {
+        return res
+          .status(400)
+          .json(
+            createErrorResponse(
+              "INVALID_REQUEST_BODY",
+              "Fields are required",
+              'Expected: {"fields": {"Field Name": "value"}}',
+              req.requestId,
+            ),
+          );
+      }
+
+      const token = process.env.AIRTABLE_TOKEN;
+      const baseId = process.env.AIRTABLE_BASE_ID;
+
+      if (!token || !baseId) {
+        return res
+          .status(500)
+          .json(
+            createErrorResponse(
+              "CONFIG_ERROR",
+              "Airtable configuration missing",
+              "AIRTABLE_TOKEN or AIRTABLE_BASE_ID not configured",
+              req.requestId,
+            ),
+          );
+      }
+
+      // Create record in Airtable
+      const response = await fetch(
+        `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ fields }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          `Failed to create record: ${errorData.error?.message || response.statusText}`,
+        );
+      }
+
+      const result = await response.json();
+      res.status(201).json(result);
+    } catch (error: any) {
+      console.error(`Error creating record in ${req.params.table}:`, error);
+      res
+        .status(500)
+        .json(
+          createErrorResponse(
+            "RECORD_CREATE_ERROR",
+            "Failed to create record",
+            error.message,
+            req.requestId,
+          ),
+        );
+    }
+  });
+
+  // PATCH /api/:table/:recordId - Update existing record
+  app.patch(
+    "/api/:table/:recordId",
+    async (req: AuthenticatedRequest, res: Response) => {
+      try {
+        const { table, recordId } = req.params;
+        const { fields } = req.body;
+
+        if (!fields) {
+          return res
+            .status(400)
+            .json(
+              createErrorResponse(
+                "INVALID_REQUEST_BODY",
+                "Fields are required",
+                'Expected: {"fields": {"Field Name": "value"}}',
+                req.requestId,
+              ),
+            );
+        }
+
+        const token = process.env.AIRTABLE_TOKEN;
+        const baseId = process.env.AIRTABLE_BASE_ID;
+
+        if (!token || !baseId) {
+          return res
+            .status(500)
+            .json(
+              createErrorResponse(
+                "CONFIG_ERROR",
+                "Airtable configuration missing",
+                "AIRTABLE_TOKEN or AIRTABLE_BASE_ID not configured",
+                req.requestId,
+              ),
+            );
+        }
+
+        // Update record in Airtable
+        const response = await fetch(
+          `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}/${recordId}`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ fields }),
+          },
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            `Failed to update record: ${errorData.error?.message || response.statusText}`,
+          );
+        }
+
+        const result = await response.json();
+        res.json(result);
+      } catch (error: any) {
+        console.error(
+          `Error updating record ${req.params.recordId} in ${req.params.table}:`,
+          error,
+        );
+        res
+          .status(500)
+          .json(
+            createErrorResponse(
+              "RECORD_UPDATE_ERROR",
+              "Failed to update record",
+              error.message,
+              req.requestId,
+            ),
+          );
+      }
+    },
+  );
+
   const httpServer = createServer(app);
   return httpServer;
 }
